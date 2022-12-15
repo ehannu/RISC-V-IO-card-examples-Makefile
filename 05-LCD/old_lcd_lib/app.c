@@ -1,155 +1,175 @@
+/* 
+Replace this file with your code. Put your source files in this directory and any libraries in the lib folder. 
+If your main program should be assembly-language replace this file with main.S instead.
 
+Libraries (other than vendor SDK and gcc libraries) must have .h-files in /lib/[library name]/include/ and .c-files in /lib/[library name]/src/ to be included automatically.
+*/
 
 #include "gd32vf103.h"
-#include "delay.h"
-
-/* This contains most of the LCD functions */
+#include "string.h"
 #include "lcd.h"
+#define BITMASK 0xFFFFFFF8
 
-/* This contains an image */
-#include "kth_logo.h"
+typedef  enum {Idle, Angle, Shake, ShakeFeedback, Exhale, Click, Inhale, HoldBreath, HoldBreathCounter, Done, Feedback} states ;
+static states State;
 
-int main(void)
-{
+int main(){
+	Lcd_SetType(LCD_INVERTED);
+	Lcd_Init();
+	LCD_Clear(BLACK);
+	char READY[] = "Redo att anvandas ";
+	char LIDOFF[] = "Ta av munstycket ";
+	char ANGLE[] = "HALL INHALATORN ";
+	char ANGLE2[] = "UPPRATT ";
+	char SHAKE[] = "SKAKA ";
+	char SHAKE2[] = "3-5ggr ";
+	//char FEEDBACK[] = "Bra! ";
+	char EXHALE[] = "Andas ut ";
+	char CLICK[] = "Klicka ";
+	char INHALE[] = "Andas in ";
+	char HOLDBREATH[] = "Hall andan ";
+	char DONE[] = "KLAR! ";
+	char FEEDBACK1[] = "HALL UPPRATT: ";
+	char FEEDBACK2[] = "SKAKA: ";
+	char FEEDBACK3[] = "ANDAS UT: ";
+	char FEEDBACK4[] = "ANDAS IN: ";
 
-    int main(){
-	lio_lcd_config_t lcd_conf = {0x00, 160, 80, 0, 24, RED | GREEN};
-	uint8_t bitmask[] = {0x00,0x00,0x00,0x3F,0x42,0x12,0x12,0x1E,0x12,0x12,0x02,0x42,0x42,0x3F,0x00,0x00};
-	uint16_t color = 0;
-	uint32_t port = 0;
-	uint32_t count = 0;
-	uint16_t hours = 13;
-	uint16_t minutes = 37;
-	uint16_t seconds = 0;
-	char string[] = "String! Some more string!!!!!";
-	rcu_periph_clock_enable(RCU_GPIOB);
-	gpio_init(GPIOB, GPIO_MODE_OUT_PP, GPIO_OSPEED_50MHZ, GPIO_PIN_0 | GPIO_PIN_1 | GPIO_PIN_2);
-	lio_lcd_init(lcd_conf);
-	char num_string[10] = {0};
+	uint64_t start_time = 0;
+	uint64_t timePassed = 0;
+	uint32_t timeLimit = 0; 
+	uint32_t oneSec; 
 
-	int32_t analog_read = 0;
-    
-
-    graph_config_t yellow_graph = {
-        .color = RED | GREEN,                //Graph color
-        .background = 0,            //Background color (used for erasing)
-        .x_origin = 30,                 //x,y coordinates for upper left corner
-        .y_origin = 20,
-        .scale_setting = SCALE_TO_FIT,  //Scaling behaviour, SCALE_TO_FIT (fits the data to the window),  
-                                        //                   NO_SCALING (just 1:1 maps the data),
-                                        //                   USE_CUSTOM (uses .scaling as the divisor)
-        .scaling = 1,
-        .lower_bound = 0                //The lowest pixel on the graph maps to this number (not used by SCALE_TO_FIT)
-    };
-    gui_init_graph(&yellow_graph, 100, GRAPH_HEIGHT);
-
-
-
-	
-	lio_lcd_clear(BLUE);
-	lio_lcd_rect_fill(20, 50, 20, 50, RED);
-	lio_lcd_rect_lines(20, 50, 20, 50, GREEN);
-	lio_lcd_draw_bitmask(30, 37, 30, 43, bitmask, BLUE);
-	lio_lcd_draw_char(20, 50, 't', RED);
-	lio_lcd_draw_char(28, 50, 'e', RED);
-	lio_lcd_draw_char(36, 50, 's', RED);
-	lio_lcd_draw_char(44, 50, 't', RED);
-	lio_lcd_draw_char(52, 50, '!', RED);
-	lio_lcd_draw_string(10, 10, string, 0x0000);
-
-	lio_lcd_draw_num(90, 60, 0xA5, 2, 0);
-
-	lio_lcd_draw_line(80, 20, 40, 25, 0xFFFF);
-	lio_lcd_draw_line(80, 50, 40, 75, 0xFFFF);
-	lio_lcd_draw_line(80,125, 40, 10, 0xFFFF);
-	lio_lcd_draw_line(80,145, 40, 60, 0xFFFF);
-	lio_lcd_set_background(0);
+	State = Idle;
 
 	while(1){
-		
-		count += 1;
-		port = gpio_input_port_get(GPIOB);
-		gpio_port_write(GPIOB, (port & BITMASK) | (count & (~BITMASK)));
-		lio_lcd_draw_num(60, 60, -count, 10, 0xFFFF);
-		//lio_lcd_printf(20, 20, 0, "Hex: 0x%08x", count);
-		lio_lcd_printf_scaled(20, 20, 0xFFFF, 2, "%02d:%02d:%02d", hours, minutes, seconds);
-		
 
-		analog_read = count*0xF0FF00FF;
-        gui_erase_graph(&yellow_graph);
-        gui_append_graph(&yellow_graph, &analog_read, 1);
-        gui_render_graph(&yellow_graph);
-		for(volatile int i = 300000; i > 0; i--);
+		switch (State) {
 
-		seconds++;
-		if(seconds > 59){
-			minutes += 1;
-			seconds = 0;
-			if(minutes > 59){
-				minutes = 0;
-				hours = (hours+1) % 24;
-			}
-		}	
-		
+			case Idle:
+			//if (digitalRead(BTN_PIN) == LOW){  // if button is pressed
+				//TEXT[] = "Redo att anvandas";
+				//strcpy(TEXT, "Redo att anvandas");
+				LCD_DrawPoint(113,29,WHITE);
+				LCD_DrawPoint(115,29,WHITE);
+				LCD_ShowString(13, 30, READY, WHITE);
+				delay_1ms(2000);
+				LCD_Clear(BLACK);
+				State = Angle;
+			//}
+			break;
+			
+			case Angle:
+				LCD_Clear(BLACK);
+				LCD_DrawPoint_big(31,19,WHITE);
+				LCD_DrawPoint_big(83,39,WHITE);
+				LCD_DrawPoint_big(87,39,WHITE);
+				LCD_ShowString(20, 20, ANGLE, WHITE);
+				LCD_ShowString(50, 40, ANGLE2, WHITE);
+				delay_1ms(2500);
+				LCD_Clear(BLACK);
+				State = Shake;
+			break;
+
+			case Shake: 
+			//while(digitalRead(BTN_PIN) == HIGH){
+				LCD_ShowString(15, 30, LIDOFF, WHITE);
+				delay_1ms(4000);
+				LCD_Clear(BLACK);
+				LCD_ShowString(60, 20, SHAKE, WHITE);
+				LCD_ShowString(57, 40, SHAKE2, WHITE);
+				delay_1ms(3000);
+				State = ShakeFeedback;
+			//}
+			break;
+
+			case ShakeFeedback:  
+				LCD_Clear(GREEN);
+				//LCD_ShowString(60, 30, FEEDBACK, BLACK);
+				delay_1ms(2000);
+				State = Exhale;
+			break;
+
+			case Exhale: 
+				LCD_Clear(BLACK);
+				LCD_ShowString(50, 30, EXHALE, WHITE);
+				delay_1ms(3000);
+				State = Click;
+			break;
+
+			case Click: 
+				LCD_Clear(BLACK);
+				LCD_ShowString(60, 30, CLICK, WHITE);
+				delay_1ms(2000);
+				State = Inhale;
+			break;
+
+			case Inhale: 
+				LCD_Clear(BLACK);
+				LCD_ShowString(50, 30, INHALE, WHITE);
+				delay_1ms(4000);
+				// LÄGG TILL EN COUNTER som räknar ner... eller försök hitta något som fyller upp skärmen = tiden går
+				State = HoldBreath;
+			break;
+
+			case HoldBreath: 
+				LCD_Clear(BLACK);
+				LCD_DrawPoint_big(52,30,WHITE);
+				LCD_ShowString(40, 30, HOLDBREATH, WHITE);
+				delay_1ms(1000);
+				State = HoldBreathCounter;				
+			break;
+
+			case HoldBreathCounter:
+				LCD_ShowString(40, 30, HOLDBREATH, WHITE);
+
+				if (timeLimit <= 5){
+					if (start_time == 0){
+						start_time = get_timer_value();	
+
+					} else {
+						timePassed = get_timer_value();
+						oneSec = (timePassed - start_time)/(SystemCoreClock/(4.0));
+						if(oneSec == 1){
+							LCD_Fill(40, 30, 100, 60, BLACK);
+							if (5-timeLimit != 0){
+								LCD_ShowNum(80, 50, (5-timeLimit), 1, WHITE);
+							}
+							start_time = 0;
+							timeLimit++;
+						}
+					}
+				} else {
+					State = Done;
+					timeLimit = 0;
+				}
+			break;
+
+			case Done:
+				LCD_Clear(GREEN);
+				//LCD_ShowString(60, 30, DONE, BLACK);
+				LCD_ShowStr(60, 30, DONE, BLACK, 1);
+				delay_1ms(3000);
+				LCD_Clear(BLACK);
+				State = Feedback;
+			break;
+
+			case Feedback: 
+				LCD_DrawPoint_big(14,1,WHITE);
+				LCD_DrawPoint_big(77,1,WHITE);
+				LCD_DrawPoint_big(81,1,WHITE);
+				LCD_ShowStr(3, 1, FEEDBACK1, WHITE, 1);
+				LCD_ShowStr(59, 20, FEEDBACK2, WHITE, 1);
+				LCD_ShowStr(35, 40, FEEDBACK3, WHITE, 1);
+				LCD_ShowStr(35, 60, FEEDBACK4, WHITE, 1);
+				LCD_Fill(120,3,135,16,RED);
+				LCD_Fill(120,22,135,35,GREEN);
+				LCD_Fill(120,42,135,55,BRRED);
+				LCD_Fill(120,62,135,83,GREEN);
+				delay_1ms(6000);
+				LCD_Clear(BLACK);
+				State = Idle;
+			break;
+  		}
+
 	}
 }
-
-    /* Initialize the LCD for Longan nano */
-    //lio_lcd_config_t lcd_conf = {0x00, 160, 80, 0, 24, RED | GREEN};
-
-    /* The lcd on the longan nano is a 160*80 px ips display. It has 16bit colors.
-       The colors use the format RGB565 which encodes 5 bits for red, 6 bits for green and 5 for blue.
-       
-       The bits are arranged as such:
-       | b15 | b14 | b13 | b12 | b11 | b10 | b9  | b8  | b7  | b6  | b5  | b4  | b3  | b2  | b1  | b0  |
-       |-----------------------------|-----------------------------------|-----------------------------|
-       | R 4 | R 3 | R 2 | R 1 | R 0|||G 5 | G 4 | G 3 | G 2 | G 1 | G 0|||B 4 | B 3 | B 2 | B 1 | B 0 |
-
-       This gives RED = 0xF800, GREEN = 0x07E0, BLUE = 0x001F
-       
-       The lcd.h libary contains defines for most basic colors
-       */
-
-    /* This lcd api uses a global variable for the background color 
-       colors are represented with a 16bit integer. */
-    //BACK_COLOR = BLACK;
-
-    /* Use LCD_clear() to fill the entire screen with a color */
-    //LCD_Clear(BLACK);
-    
-    /* Use this to display a string */
-    //LCD_ShowStr(0, 0, (uint8_t*)"Hello world!", WHITE, TRANSPARENT);
-
-    /* Draw a line from point A to point B. First two arguments are x and y for point A, and argument 3 and four point B */
-    //LCD_DrawLine(0, 16, 159, 16, WHITE);
-
-    /* Draw a rectangle */
-    //LCD_DrawRectangle(2, 20, 31, 49, GREEN);
-    
-    /* Draw circle, first two arguments are origo and third the radius */
-    //Draw_Circle(41, 59, 20, RED);
-    /* Make the circle a little clock */
-    //LCD_DrawLine(41, 59, 41, 43, CYAN);
-    //LCD_DrawLine(41, 59, 51, 66, CYAN);
-
-    /* Draws a 3*3 point at the coordinate */
-    //LCD_DrawPoint_big(68, 30, MAGENTA);
-    //LCD_DrawPoint_big(68, 40, MAGENTA);
-    //LCD_DrawPoint_big(68, 50, MAGENTA);
-
-    /* Draws a single pixel on the coordinate */
-    //LCD_DrawPoint(78, 30, LIGHTBLUE);
-    //LCD_DrawPoint(78, 40, BLUE + RED);   //BLUE + RED = MAGENTA
-    //LCD_DrawPoint(78, 50, BLUE + GREEN); //BLUE + GREEN = CYAN
-
-    /* This function takes a pointer to an array containing colors to draw a picture. */
-    //LCD_ShowPicture(90, 20, 139, 69, (uint8_t*)&kth_logo_map);
-
-    /* Display an integer */
-    //LCD_ShowNum(35,22,12, 2,RED);
-
-    /* This function contains an example on how to use the graph UI element. */
-    //while(1){
-    //    LCD_WR_Queue();
-    //};
-//}
